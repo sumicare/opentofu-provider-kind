@@ -1,5 +1,5 @@
 /*
-   Copyright 2025 Sumicare
+   Copyright 2026 Sumicare
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -23,9 +23,6 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
-
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 // cleanupTestClusters removes all test clusters using kind binary.
@@ -56,11 +53,18 @@ func cleanupTestClusters() {
 				continue
 			}
 
-			deleteCmd := exec.CommandContext(context.Background(), "kind", "delete", "cluster", "--name", clusterName)
+			deleteCmd := exec.CommandContext(
+				context.Background(),
+				"kind",
+				"delete",
+				"cluster",
+				"--name",
+				clusterName,
+			)
 
-			err := deleteCmd.Run()
-			if err != nil {
-				Fail(fmt.Sprintf("Failed to delete cluster %s: %v", clusterName, err))
+			deleteErr := deleteCmd.Run()
+			if deleteErr != nil {
+				fmt.Fprintf(os.Stderr, "Failed to delete cluster %s: %v\n", clusterName, deleteErr)
 			}
 
 			break
@@ -68,17 +72,15 @@ func cleanupTestClusters() {
 	}
 }
 
-// SynchronizedBeforeSuite runs once before all parallel processes start.
-var _ = SynchronizedBeforeSuite(func() []byte {
+// setupTestSuite runs once before all tests.
+func setupTestSuite() {
 	if os.Getenv("TF_ACC") == "1" {
 		cleanupTestClusters()
 	}
+}
 
-	return nil
-}, func(_ []byte) {})
-
-// SynchronizedAfterSuite runs once after all parallel processes complete.
-var _ = SynchronizedAfterSuite(func() {}, func() {
+// teardownTestSuite runs once after all tests.
+func teardownTestSuite() {
 	if os.Getenv("TF_ACC") != "1" {
 		return
 	}
@@ -101,10 +103,14 @@ var _ = SynchronizedAfterSuite(func() {}, func() {
 			_ = os.Remove(name) // Ignore errors during cleanup
 		}
 	}
-})
+}
 
-// TestKind runs the Ginkgo test suite for the Kind provider.
-func TestKind(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Kind Provider Suite")
+// TestMain is the entry point for all tests in the package.
+func TestMain(m *testing.M) {
+	setupTestSuite()
+
+	code := m.Run()
+
+	teardownTestSuite()
+	os.Exit(code)
 }

@@ -11,7 +11,7 @@ on:
       - "README.md"
 
 env:
-  GO_VERSION: "1.25"
+  GO_VERSION: "1.26"
 
 permissions:
   contents: read
@@ -56,11 +56,20 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           go-version-file: "go.mod"
           cache: true
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_wrapper: false
       - name: Setup Kind
         uses: helm/kind-action@v1
         with:
           cluster_name: test-cluster
+      - name: Resolve OpenTofu path
+        run: echo "TOFU_PATH=$(which tofu)" >> "$GITHUB_ENV"
       - run: go mod download
-      - run: TF_ACC=1 go test -v -cover -timeout=20m ./...
+      - run: go test -v -cover -timeout=20m ./...
         env:
           TF_ACC: "1"
+          TF_ACC_TERRAFORM_PATH: ${{ env.TOFU_PATH }}
+          TF_ACC_PROVIDER_NAMESPACE: hashicorp
+          TF_ACC_PROVIDER_HOST: registry.opentofu.org

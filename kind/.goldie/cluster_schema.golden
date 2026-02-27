@@ -1,0 +1,57 @@
+{
+  "client_certificate": {
+    "description": "Client certificate for authenticating to cluster.",
+    "computed": true,
+    "sensitive": true
+  },
+  "client_key": {
+    "description": "Client key for authenticating to cluster.",
+    "computed": true,
+    "sensitive": true
+  },
+  "cluster_ca_certificate": {
+    "description": "Client verifies the server certificate with this CA cert.",
+    "computed": true,
+    "sensitive": true
+  },
+  "completed": {
+    "description": "Cluster successfully created.",
+    "computed": true
+  },
+  "endpoint": {
+    "description": "Kubernetes APIServer endpoint.",
+    "computed": true
+  },
+  "id": {
+    "description": "The ID of the cluster resource.",
+    "computed": true
+  },
+  "kubeconfig": {
+    "description": "Kubeconfig set after the cluster is created.",
+    "computed": true,
+    "sensitive": true
+  },
+  "kubeconfig_path": {
+    "description": "Kubeconfig path set after the cluster is created or by the user to override defaults.",
+    "optional": true,
+    "computed": true
+  },
+  "name": {
+    "description": "The kind name that is given to the created cluster.",
+    "required": true
+  },
+  "node_image": {
+    "description": "The node_image that kind will use (ex: kindest/node:v1.29.7).",
+    "optional": true,
+    "computed": true
+  },
+  "runtime": {
+    "description": "Container runtime provider: 'docker', 'podman', or 'nerdctl'. Auto-detected if not set.",
+    "optional": true
+  },
+  "wait_for_ready": {
+    "description": "Defines whether or not the provider will wait for the control plane to be ready. Defaults to false.",
+    "optional": true,
+    "computed": true
+  }
+}

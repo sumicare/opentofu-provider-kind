@@ -1,5 +1,5 @@
 /*
-   Copyright 2025 Sumicare
+   Copyright 2026 Sumicare
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -47,6 +47,11 @@ const (
 	retryDelay = 5 * time.Second
 	// kubeProxyModeNone represents the "none" kube-proxy mode.
 	kubeProxyModeNone = "none"
+
+	// Runtime provider names.
+	providerDocker  = "docker"
+	providerPodman  = "podman"
+	providerNerdctl = "nerdctl"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -75,6 +80,7 @@ type (
 		ID                   types.String `tfsdk:"id"`
 		Name                 types.String `tfsdk:"name"`
 		NodeImage            types.String `tfsdk:"node_image"`
+		Runtime              types.String `tfsdk:"runtime"`
 		KubeconfigPath       types.String `tfsdk:"kubeconfig_path"`
 		Kubeconfig           types.String `tfsdk:"kubeconfig"`
 		ClientCertificate    types.String `tfsdk:"client_certificate"`
@@ -87,14 +93,22 @@ type (
 )
 
 // Configure adds the provider configured client to the resource.
-func (*ClusterResource) Configure(_ context.Context, _ resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+func (*ClusterResource) Configure(
+	_ context.Context,
+	_ resource.ConfigureRequest,
+	_ *resource.ConfigureResponse,
+) {
 	// Provider has no configuration, so nothing to configure
 }
 
 // Create creates the resource and sets the initial Terraform state.
 //
-//nolint:gocritic // false positive
-func (clusterResource *ClusterResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+
+func (clusterResource *ClusterResource) Create(
+	ctx context.Context,
+	req resource.CreateRequest,
+	resp *resource.CreateResponse,
+) {
 	var data ClusterResourceModel
 
 	// Read Terraform plan data into the model
@@ -145,7 +159,12 @@ func (clusterResource *ClusterResource) Create(ctx context.Context, req resource
 		copts = append(copts, cluster.CreateWithWaitForReady(defaultTimeout))
 	}
 
-	provider := cluster.NewProvider(cluster.ProviderWithLogger(cmd.NewLogger()))
+	provider, provErr := newKindProvider(data.Runtime.ValueString())
+	if provErr != nil {
+		resp.Diagnostics.AddError("Invalid provider", provErr.Error())
+
+		return
+	}
 
 	// Retry cluster creation for transient failures
 	var err error
@@ -169,7 +188,12 @@ func (clusterResource *ClusterResource) Create(ctx context.Context, req resource
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating Kind cluster",
-			fmt.Sprintf("Could not create cluster %s after %d attempts: %s", name, maxRetries+1, err.Error()),
+			fmt.Sprintf(
+				"Could not create cluster %s after %d attempts: %s",
+				name,
+				maxRetries+1,
+				err.Error(),
+			),
 		)
 
 		return
@@ -193,14 +217,22 @@ func (clusterResource *ClusterResource) Create(ctx context.Context, req resource
 }
 
 // Metadata returns the resource type name.
-func (*ClusterResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (*ClusterResource) Metadata(
+	_ context.Context,
+	req resource.MetadataRequest,
+	resp *resource.MetadataResponse,
+) {
 	resp.TypeName = req.ProviderTypeName + "_cluster"
 }
 
 // Read refreshes the Terraform state with the latest data.
 //
-//nolint:gocritic // it's an internal stub
-func (clusterResource *ClusterResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+
+func (clusterResource *ClusterResource) Read(
+	ctx context.Context,
+	req resource.ReadRequest,
+	resp *resource.ReadResponse,
+) {
 	var data ClusterResourceModel
 
 	// Read Terraform prior state data into the model
@@ -221,7 +253,11 @@ func (clusterResource *ClusterResource) Read(ctx context.Context, req resource.R
 }
 
 // Schema defines the schema for the resource.
-func (*ClusterResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (*ClusterResource) Schema(
+	_ context.Context,
+	_ resource.SchemaRequest,
+	resp *resource.SchemaResponse,
+) {
 	resp.Schema = schema.Schema{
 		Description: "Manages a Kind (Kubernetes IN Docker) cluster.",
 		Blocks:      kindConfigBlocks(),
@@ -247,6 +283,13 @@ func (*ClusterResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"runtime": schema.StringAttribute{
+				Optional:    true,
+				Description: "Container runtime provider: 'docker', 'podman', or 'nerdctl'. Auto-detected if not set.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"wait_for_ready": schema.BoolAttribute{
@@ -298,8 +341,12 @@ func (*ClusterResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 
 // Update updates the resource and sets the updated Terraform state on success.
 //
-//nolint:gocritic // it's an internal stub
-func (*ClusterResource) Update(_ context.Context, _ resource.UpdateRequest, resp *resource.UpdateResponse) {
+
+func (*ClusterResource) Update(
+	_ context.Context,
+	_ resource.UpdateRequest,
+	resp *resource.UpdateResponse,
+) {
 	// Kind clusters don't support updates - everything is ForceNew
 	// This method should not be called, but we implement it for completeness
 	resp.Diagnostics.AddError(
@@ -310,8 +357,12 @@ func (*ClusterResource) Update(_ context.Context, _ resource.UpdateRequest, resp
 
 // Delete deletes the resource and removes the Terraform state on success.
 //
-//nolint:gocritic // it's an internal stub
-func (*ClusterResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+
+func (*ClusterResource) Delete(
+	ctx context.Context,
+	req resource.DeleteRequest,
+	resp *resource.DeleteResponse,
+) {
 	var data ClusterResourceModel
 
 	// Read Terraform prior state data into the model
@@ -327,10 +378,17 @@ func (*ClusterResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 
 	name := data.Name.ValueString()
 	kubeconfigPath := data.KubeconfigPath.ValueString()
-	provider := cluster.NewProvider(cluster.ProviderWithLogger(cmd.NewLogger()))
+
+	provider, provErr := newKindProvider(data.Runtime.ValueString())
+	if provErr != nil {
+		resp.Diagnostics.AddError("Invalid provider", provErr.Error())
+
+		return
+	}
 
 	// Run delete in a goroutine to respect context timeout
 	errChan := make(chan error, 1)
+
 	go func() {
 		errChan <- provider.Delete(name, kubeconfigPath)
 	}()
@@ -360,7 +418,15 @@ func (*ClusterResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 	removeContext := func(configPath, configType string) {
 		config, loadErr := clientcmd.LoadFromFile(configPath)
 		if loadErr != nil {
-			tflog.Warn(ctx, fmt.Sprintf("Unable to load %s kubeconfig for context cleanup: %v", configType, loadErr))
+			tflog.Warn(
+				ctx,
+				fmt.Sprintf(
+					"Unable to load %s kubeconfig for context cleanup: %v",
+					configType,
+					loadErr,
+				),
+			)
+
 			return
 		}
 
@@ -378,7 +444,14 @@ func (*ClusterResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 
 		writeErr := clientcmd.WriteToFile(*config, configPath)
 		if writeErr != nil {
-			tflog.Warn(ctx, fmt.Sprintf("Unable to write %s kubeconfig to remove context: %v", configType, writeErr))
+			tflog.Warn(
+				ctx,
+				fmt.Sprintf(
+					"Unable to write %s kubeconfig to remove context: %v",
+					configType,
+					writeErr,
+				),
+			)
 		}
 	}
 
@@ -393,14 +466,54 @@ func (*ClusterResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 }
 
 // ImportState imports the resource state.
-func (*ClusterResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (*ClusterResource) ImportState(
+	ctx context.Context,
+	req resource.ImportStateRequest,
+	resp *resource.ImportStateResponse,
+) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
+// newKindProvider creates a Kind cluster provider with the specified runtime.
+// If providerName is empty, kind auto-detects the available runtime.
+func newKindProvider(providerName string) (*cluster.Provider, error) {
+	opts := []cluster.ProviderOption{
+		cluster.ProviderWithLogger(cmd.NewLogger()),
+	}
+
+	switch providerName {
+	case "":
+		// Auto-detect
+	case providerDocker:
+		opts = append(opts, cluster.ProviderWithDocker())
+	case providerPodman:
+		opts = append(opts, cluster.ProviderWithPodman())
+	case providerNerdctl:
+		opts = append(opts, cluster.ProviderWithNerdctl(""))
+	default:
+		return nil, fmt.Errorf(
+			"unsupported provider %q: must be one of docker, podman, nerdctl",
+			providerName,
+		)
+	}
+
+	return cluster.NewProvider(opts...), nil
+}
+
 // readClusterState is a helper function to read cluster state.
-func (*ClusterResource) readClusterState(ctx context.Context, data *ClusterResourceModel, diags *diag.Diagnostics) {
+func (*ClusterResource) readClusterState(
+	ctx context.Context,
+	data *ClusterResourceModel,
+	diags *diag.Diagnostics,
+) {
 	name := data.Name.ValueString()
-	provider := cluster.NewProvider(cluster.ProviderWithLogger(cmd.NewLogger()))
+
+	provider, provErr := newKindProvider(data.Runtime.ValueString())
+	if provErr != nil {
+		diags.AddError("Invalid provider", provErr.Error())
+
+		return
+	}
 
 	tflog.Debug(ctx, "Reading cluster state for: "+name)
 
@@ -418,9 +531,10 @@ func (*ClusterResource) readClusterState(ctx context.Context, data *ClusterResou
 
 	// Set kubeconfig_path if not already set
 	if data.KubeconfigPath.IsNull() || data.KubeconfigPath.ValueString() == "" {
-		currentPath, err := os.Getwd()
-		if err != nil {
-			diags.AddError("Error getting current directory", err.Error())
+		currentPath, currentPathErr := os.Getwd()
+		if currentPathErr != nil {
+			diags.AddError("Error getting current directory", currentPathErr.Error())
+
 			return
 		}
 
@@ -443,6 +557,7 @@ func (*ClusterResource) readClusterState(ctx context.Context, data *ClusterResou
 	config, err := clientcmd.RESTConfigFromKubeConfig([]byte(kconfig))
 	if err != nil {
 		diags.AddError("Error parsing kubeconfig", err.Error())
+
 		return
 	}
 

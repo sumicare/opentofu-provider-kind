@@ -1,5 +1,5 @@
 /*
-   Copyright 2025 Sumicare
+   Copyright 2026 Sumicare
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -23,9 +23,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
-	"sigs.k8s.io/kind/pkg/apis/config/v1alpha4"
-
 	toml "github.com/pelletier/go-toml"
+	"sigs.k8s.io/kind/pkg/apis/config/v1alpha4"
 )
 
 // normalizeToml normalizes a TOML string by parsing and re-serializing it.
@@ -152,7 +151,10 @@ func getStringMap(m map[string]any, key string) map[string]string {
 
 // parseKindConfigFromFramework converts Framework types to v1alpha4.Cluster.
 // The context parameter is reserved for future use with framework operations.
-func parseKindConfigFromFramework(_ context.Context, kindConfigList types.List) (*v1alpha4.Cluster, error) {
+func parseKindConfigFromFramework(
+	_ context.Context,
+	kindConfigList types.List,
+) (*v1alpha4.Cluster, error) {
 	//nolint:nilnil // false positive
 	if kindConfigList.IsNull() || len(kindConfigList.Elements()) == 0 {
 		return nil, nil
@@ -217,6 +219,7 @@ func attrValueToAny(value attr.Value) any {
 		return val.ValueFloat64()
 	case types.Number:
 		f, _ := val.ValueBigFloat().Float64()
+
 		return f
 
 	case types.List:

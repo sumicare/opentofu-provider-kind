@@ -1,5 +1,5 @@
 /*
-   Copyright 2025 Sumicare
+   Copyright 2026 Sumicare
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -17,14 +17,15 @@
 package kind
 
 import (
-	"sigs.k8s.io/kind/pkg/apis/config/v1alpha4"
+	"testing"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"sigs.k8s.io/kind/pkg/apis/config/v1alpha4"
 )
 
 // Test data constants for reusability across tests.
-var (
+const (
 	testClusterKind      = "Cluster"
 	testAPIVersion       = "kind.x-k8s.io/v1alpha4"
 	testControlPlaneRole = "control-plane"
@@ -41,70 +42,166 @@ var (
 	testServiceSubnet    = "10.96.0.0/12"
 )
 
-// assertNoError checks that no error occurred and provides a descriptive message.
-func assertNoError(err error, message string) {
-	Expect(err).ToNot(HaveOccurred(), message)
+func TestGetString(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    map[string]any
+		key      string
+		expected string
+	}{
+		{
+			name:     "extracts existing string value",
+			input:    map[string]any{"key": "value"},
+			key:      "key",
+			expected: "value",
+		},
+		{
+			name:     "returns empty for missing key",
+			input:    map[string]any{},
+			key:      "missing",
+			expected: "",
+		},
+		{
+			name:     "returns empty for nil value",
+			input:    map[string]any{"key": nil},
+			key:      "key",
+			expected: "",
+		},
+		{
+			name:     "returns empty for wrong type",
+			input:    map[string]any{"key": 123},
+			key:      "key",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getString(tt.input, tt.key)
+			assert.Equal(
+				t,
+				tt.expected,
+				result,
+				"getString should handle all input types correctly",
+			)
+		})
+	}
 }
 
-// assertValidResult checks that result is not nil and provides a descriptive message.
-func assertValidResult(result any, message string) {
-	Expect(result).NotTo(BeNil(), message)
+func TestGetInt(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    map[string]any
+		key      string
+		expected int
+	}{
+		{
+			name:     "extracts existing int value",
+			input:    map[string]any{"port": testAPIServerPort},
+			key:      "port",
+			expected: testAPIServerPort,
+		},
+		{
+			name:     "returns zero for missing key",
+			input:    map[string]any{},
+			key:      "missing",
+			expected: 0,
+		},
+		{
+			name:     "returns zero for nil value",
+			input:    map[string]any{"port": nil},
+			key:      "port",
+			expected: 0,
+		},
+		{
+			name:     "returns zero for wrong type",
+			input:    map[string]any{"port": "invalid"},
+			key:      "port",
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getInt(tt.input, tt.key)
+			assert.Equal(t, tt.expected, result, "getInt should handle all input types correctly")
+		})
+	}
 }
 
-// Test suite for Kind configuration structure flattening functions.
-var _ = Describe("StructureKindConfig", func() {
-	DescribeTable("getString - extracts string values from maps",
-		func(input map[string]any, key, expected string) {
-			result := getString(input, key)
-			Expect(result).To(Equal(expected), "getString should handle all input types correctly")
+func TestGetBool(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    map[string]any
+		key      string
+		expected bool
+	}{
+		{
+			name:     "extracts true value",
+			input:    map[string]any{"enabled": true},
+			key:      "enabled",
+			expected: true,
 		},
-		Entry("extracts existing string value", map[string]any{"key": "value"}, "key", "value"),
-		Entry("returns empty for missing key", map[string]any{}, "missing", ""),
-		Entry("returns empty for nil value", map[string]any{"key": nil}, "key", ""),
-		Entry("returns empty for wrong type", map[string]any{"key": 123}, "key", ""),
-	)
+		{
+			name:     "extracts false value",
+			input:    map[string]any{"enabled": false},
+			key:      "enabled",
+			expected: false,
+		},
+		{
+			name:     "returns false for missing key",
+			input:    map[string]any{},
+			key:      "missing",
+			expected: false,
+		},
+		{
+			name:     "returns false for nil value",
+			input:    map[string]any{"enabled": nil},
+			key:      "enabled",
+			expected: false,
+		},
+		{
+			name:     "returns false for wrong type",
+			input:    map[string]any{"enabled": "true"},
+			key:      "enabled",
+			expected: false,
+		},
+	}
 
-	DescribeTable("getInt - extracts integer values from maps",
-		func(input map[string]any, key string, expected int) {
-			result := getInt(input, key)
-			Expect(result).To(Equal(expected), "getInt should handle all input types correctly")
-		},
-		Entry("extracts existing int value", map[string]any{"port": testAPIServerPort}, "port", testAPIServerPort),
-		Entry("returns zero for missing key", map[string]any{}, "missing", 0),
-		Entry("returns zero for nil value", map[string]any{"port": nil}, "port", 0),
-		Entry("returns zero for wrong type", map[string]any{"port": "invalid"}, "port", 0),
-	)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getBool(tt.input, tt.key)
+			assert.Equal(t, tt.expected, result, "getBool should handle all input types correctly")
+		})
+	}
+}
 
-	DescribeTable("getBool - extracts boolean values from maps",
-		func(input map[string]any, key string, expected bool) {
-			result := getBool(input, key)
-			Expect(result).To(Equal(expected), "getBool should handle all input types correctly")
-		},
-		Entry("extracts true value", map[string]any{"enabled": true}, "enabled", true),
-		Entry("extracts false value", map[string]any{"enabled": false}, "enabled", false),
-		Entry("returns false for missing key", map[string]any{}, "missing", false),
-		Entry("returns false for nil value", map[string]any{"enabled": nil}, "enabled", false),
-		Entry("returns false for wrong type", map[string]any{"enabled": "true"}, "enabled", false),
-	)
-
-	DescribeTable("flattenKindConfig - converts map to v1alpha4.Cluster",
-		func(input map[string]any, validator func(*v1alpha4.Cluster)) {
-			result, err := flattenKindConfig(input)
-			assertNoError(err, "flattenKindConfig should not return an error")
-			assertValidResult(result, "flattenKindConfig should return a non-nil result")
-			validator(result)
-		},
-		Entry("basic cluster config",
-			map[string]any{
+func TestFlattenKindConfig(t *testing.T) {
+	tests := []struct {
+		input     map[string]any
+		validator func(t *testing.T, result *v1alpha4.Cluster)
+		name      string
+	}{
+		{
+			name: "basic cluster config",
+			input: map[string]any{
 				"kind":        testClusterKind,
 				"api_version": testAPIVersion,
 			},
-			func(result *v1alpha4.Cluster) {
-				Expect(result.Kind).To(Equal(testClusterKind), "Kind field should be set correctly")
-				Expect(result.APIVersion).To(Equal(testAPIVersion), "APIVersion field should be set correctly")
-			}),
-		Entry("cluster config with nodes",
-			map[string]any{
+			validator: func(t *testing.T, result *v1alpha4.Cluster) {
+				t.Helper()
+				assert.Equal(t, testClusterKind, result.Kind, "Kind field should be set correctly")
+				assert.Equal(
+					t,
+					testAPIVersion,
+					result.APIVersion,
+					"APIVersion field should be set correctly",
+				)
+			},
+		},
+		{
+			name: "cluster config with nodes",
+			input: map[string]any{
 				"kind":        testClusterKind,
 				"api_version": testAPIVersion,
 				"node": []any{
@@ -112,13 +209,26 @@ var _ = Describe("StructureKindConfig", func() {
 					map[string]any{"role": testWorkerRole},
 				},
 			},
-			func(result *v1alpha4.Cluster) {
-				Expect(result.Nodes).To(HaveLen(2), "should have 2 nodes")
-				Expect(result.Nodes[0].Role).To(Equal(v1alpha4.ControlPlaneRole), "first node should be control-plane")
-				Expect(result.Nodes[1].Role).To(Equal(v1alpha4.WorkerRole), "second node should be worker")
-			}),
-		Entry("cluster config with networking",
-			map[string]any{
+			validator: func(t *testing.T, result *v1alpha4.Cluster) {
+				t.Helper()
+				assert.Len(t, result.Nodes, 2, "should have 2 nodes")
+				assert.Equal(
+					t,
+					v1alpha4.ControlPlaneRole,
+					result.Nodes[0].Role,
+					"first node should be control-plane",
+				)
+				assert.Equal(
+					t,
+					v1alpha4.WorkerRole,
+					result.Nodes[1].Role,
+					"second node should be worker",
+				)
+			},
+		},
+		{
+			name: "cluster config with networking",
+			input: map[string]any{
 				"kind":        testClusterKind,
 				"api_version": testAPIVersion,
 				"networking": []any{
@@ -128,12 +238,25 @@ var _ = Describe("StructureKindConfig", func() {
 					},
 				},
 			},
-			func(result *v1alpha4.Cluster) {
-				Expect(result.Networking.APIServerAddress).To(Equal(testAPIServerAddress), "API server address should be set correctly")
-				Expect(result.Networking.APIServerPort).To(Equal(int32(testAPIServerPort)), "API server port should be set correctly")
-			}),
-		Entry("cluster config with containerd patches",
-			map[string]any{
+			validator: func(t *testing.T, result *v1alpha4.Cluster) {
+				t.Helper()
+				assert.Equal(
+					t,
+					testAPIServerAddress,
+					result.Networking.APIServerAddress,
+					"API server address should be set correctly",
+				)
+				assert.Equal(
+					t,
+					int32(testAPIServerPort),
+					result.Networking.APIServerPort,
+					"API server port should be set correctly",
+				)
+			},
+		},
+		{
+			name: "cluster config with containerd patches",
+			input: map[string]any{
 				"kind":        testClusterKind,
 				"api_version": testAPIVersion,
 				"containerd_config_patches": []any{
@@ -141,13 +264,31 @@ var _ = Describe("StructureKindConfig", func() {
 					"[plugins.cri.registry]\n  config_path = \"/etc/containerd/certs.d\"",
 				},
 			},
-			func(result *v1alpha4.Cluster) {
-				Expect(result.ContainerdConfigPatches).To(HaveLen(2), "should have 2 containerd config patches")
-				Expect(result.ContainerdConfigPatches[0]).To(ContainSubstring("sandbox_image"), "first patch should contain sandbox_image")
-				Expect(result.ContainerdConfigPatches[1]).To(ContainSubstring("config_path"), "second patch should contain config_path")
-			}),
-		Entry("cluster config with runtime config",
-			map[string]any{
+			validator: func(t *testing.T, result *v1alpha4.Cluster) {
+				t.Helper()
+				assert.Len(
+					t,
+					result.ContainerdConfigPatches,
+					2,
+					"should have 2 containerd config patches",
+				)
+				assert.Contains(
+					t,
+					result.ContainerdConfigPatches[0],
+					"sandbox_image",
+					"first patch should contain sandbox_image",
+				)
+				assert.Contains(
+					t,
+					result.ContainerdConfigPatches[1],
+					"config_path",
+					"second patch should contain config_path",
+				)
+			},
+		},
+		{
+			name: "cluster config with runtime config",
+			input: map[string]any{
 				"kind":        testClusterKind,
 				"api_version": testAPIVersion,
 				"runtime_config": map[string]any{
@@ -155,13 +296,21 @@ var _ = Describe("StructureKindConfig", func() {
 					"api_beta":  "true",
 				},
 			},
-			func(result *v1alpha4.Cluster) {
-				Expect(result.RuntimeConfig).To(HaveLen(2), "should have 2 runtime config entries")
-				Expect(result.RuntimeConfig["api/alpha"]).To(Equal("false"), "api/alpha should be false")
-				Expect(result.RuntimeConfig["api/beta"]).To(Equal("true"), "api/beta should be true")
-			}),
-		Entry("cluster config with feature gates",
-			map[string]any{
+			validator: func(t *testing.T, result *v1alpha4.Cluster) {
+				t.Helper()
+				assert.Len(t, result.RuntimeConfig, 2, "should have 2 runtime config entries")
+				assert.Equal(
+					t,
+					"false",
+					result.RuntimeConfig["api/alpha"],
+					"api/alpha should be false",
+				)
+				assert.Equal(t, "true", result.RuntimeConfig["api/beta"], "api/beta should be true")
+			},
+		},
+		{
+			name: "cluster config with feature gates",
+			input: map[string]any{
 				"kind":        testClusterKind,
 				"api_version": testAPIVersion,
 				"feature_gates": map[string]any{
@@ -170,53 +319,83 @@ var _ = Describe("StructureKindConfig", func() {
 					"FeatureC": "True",
 				},
 			},
-			func(result *v1alpha4.Cluster) {
-				Expect(result.FeatureGates).To(HaveLen(3), "should have 3 feature gates")
-				Expect(result.FeatureGates["FeatureA"]).To(BeTrue(), "FeatureA should be true")
-				Expect(result.FeatureGates["FeatureB"]).To(BeFalse(), "FeatureB should be false")
-				Expect(result.FeatureGates["FeatureC"]).To(BeTrue(), "FeatureC should be true")
-			}),
-	)
-
-	DescribeTable("flattenKindConfigNodes - converts map to v1alpha4.Node",
-		func(input map[string]any, validator func(v1alpha4.Node)) {
-			result, err := flattenKindConfigNodes(input)
-			assertNoError(err, "flattenKindConfigNodes should not return an error")
-			validator(result)
+			validator: func(t *testing.T, result *v1alpha4.Cluster) {
+				t.Helper()
+				assert.Len(t, result.FeatureGates, 3, "should have 3 feature gates")
+				assert.True(t, result.FeatureGates["FeatureA"], "FeatureA should be true")
+				assert.False(t, result.FeatureGates["FeatureB"], "FeatureB should be false")
+				assert.True(t, result.FeatureGates["FeatureC"], "FeatureC should be true")
+			},
 		},
-		Entry("control-plane node",
-			map[string]any{"role": testControlPlaneRole},
-			func(result v1alpha4.Node) {
-				Expect(result.Role).To(Equal(v1alpha4.ControlPlaneRole), "role should be control-plane")
-			}),
-		Entry("worker node",
-			map[string]any{"role": testWorkerRole},
-			func(result v1alpha4.Node) {
-				Expect(result.Role).To(Equal(v1alpha4.WorkerRole), "role should be worker")
-			}),
-		Entry("node with custom image",
-			map[string]any{
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := flattenKindConfig(tt.input)
+			require.NoError(t, err, "flattenKindConfig should not return an error")
+			require.NotNil(t, result, "flattenKindConfig should return a non-nil result")
+			tt.validator(t, result)
+		})
+	}
+}
+
+func TestFlattenKindConfigNodes(t *testing.T) {
+	tests := []struct {
+		input     map[string]any
+		validator func(t *testing.T, result v1alpha4.Node)
+		name      string
+	}{
+		{
+			name:  "control-plane node",
+			input: map[string]any{"role": testControlPlaneRole},
+			validator: func(t *testing.T, result v1alpha4.Node) {
+				t.Helper()
+				assert.Equal(
+					t,
+					v1alpha4.ControlPlaneRole,
+					result.Role,
+					"role should be control-plane",
+				)
+			},
+		},
+		{
+			name:  "worker node",
+			input: map[string]any{"role": testWorkerRole},
+			validator: func(t *testing.T, result v1alpha4.Node) {
+				t.Helper()
+				assert.Equal(t, v1alpha4.WorkerRole, result.Role, "role should be worker")
+			},
+		},
+		{
+			name: "node with custom image",
+			input: map[string]any{
 				"role":  testControlPlaneRole,
 				"image": testNodeImage,
 			},
-			func(result v1alpha4.Node) {
-				Expect(result.Image).To(Equal(testNodeImage), "image should be set correctly")
-			}),
-		Entry("node with custom labels",
-			map[string]any{
+			validator: func(t *testing.T, result v1alpha4.Node) {
+				t.Helper()
+				assert.Equal(t, testNodeImage, result.Image, "image should be set correctly")
+			},
+		},
+		{
+			name: "node with custom labels",
+			input: map[string]any{
 				"role": testWorkerRole,
 				"labels": map[string]any{
 					"app":  "test",
 					"tier": "backend",
 				},
 			},
-			func(result v1alpha4.Node) {
-				Expect(result.Labels).To(HaveLen(2), "should have 2 labels")
-				Expect(result.Labels["app"]).To(Equal("test"), "app label should be test")
-				Expect(result.Labels["tier"]).To(Equal("backend"), "tier label should be backend")
-			}),
-		Entry("node with extra mounts",
-			map[string]any{
+			validator: func(t *testing.T, result v1alpha4.Node) {
+				t.Helper()
+				assert.Len(t, result.Labels, 2, "should have 2 labels")
+				assert.Equal(t, "test", result.Labels["app"], "app label should be test")
+				assert.Equal(t, "backend", result.Labels["tier"], "tier label should be backend")
+			},
+		},
+		{
+			name: "node with extra mounts",
+			input: map[string]any{
 				"role": testControlPlaneRole,
 				"extra_mounts": []any{
 					map[string]any{
@@ -225,13 +404,26 @@ var _ = Describe("StructureKindConfig", func() {
 					},
 				},
 			},
-			func(result v1alpha4.Node) {
-				Expect(result.ExtraMounts).To(HaveLen(1), "should have 1 extra mount")
-				Expect(result.ExtraMounts[0].HostPath).To(Equal(testHostPath), "host path should be set correctly")
-				Expect(result.ExtraMounts[0].ContainerPath).To(Equal(testContainerPath), "container path should be set correctly")
-			}),
-		Entry("node with extra port mappings",
-			map[string]any{
+			validator: func(t *testing.T, result v1alpha4.Node) {
+				t.Helper()
+				assert.Len(t, result.ExtraMounts, 1, "should have 1 extra mount")
+				assert.Equal(
+					t,
+					testHostPath,
+					result.ExtraMounts[0].HostPath,
+					"host path should be set correctly",
+				)
+				assert.Equal(
+					t,
+					testContainerPath,
+					result.ExtraMounts[0].ContainerPath,
+					"container path should be set correctly",
+				)
+			},
+		},
+		{
+			name: "node with extra port mappings",
+			input: map[string]any{
 				"role": testControlPlaneRole,
 				"extra_port_mappings": []any{
 					map[string]any{
@@ -240,203 +432,423 @@ var _ = Describe("StructureKindConfig", func() {
 					},
 				},
 			},
-			func(result v1alpha4.Node) {
-				Expect(result.ExtraPortMappings).To(HaveLen(1), "should have 1 extra port mapping")
-				Expect(result.ExtraPortMappings[0].ContainerPort).To(Equal(int32(testContainerPort)), "container port should be set correctly")
-				Expect(result.ExtraPortMappings[0].HostPort).To(Equal(int32(testHostPort)), "host port should be set correctly")
-			}),
-		Entry("node with kubeadm config patches",
-			map[string]any{
+			validator: func(t *testing.T, result v1alpha4.Node) {
+				t.Helper()
+				assert.Len(t, result.ExtraPortMappings, 1, "should have 1 extra port mapping")
+				assert.Equal(
+					t,
+					int32(testContainerPort),
+					result.ExtraPortMappings[0].ContainerPort,
+					"container port should be set correctly",
+				)
+				assert.Equal(
+					t,
+					int32(testHostPort),
+					result.ExtraPortMappings[0].HostPort,
+					"host port should be set correctly",
+				)
+			},
+		},
+		{
+			name: "node with kubeadm config patches",
+			input: map[string]any{
 				"role": testControlPlaneRole,
 				"kubeadm_config_patches": []any{
 					"patch1",
 					"patch2",
 				},
 			},
-			func(result v1alpha4.Node) {
-				Expect(result.KubeadmConfigPatches).To(HaveLen(2), "should have 2 kubeadm config patches")
-				Expect(result.KubeadmConfigPatches[0]).To(Equal("patch1"), "first patch should be patch1")
-				Expect(result.KubeadmConfigPatches[1]).To(Equal("patch2"), "second patch should be patch2")
-			}),
-	)
-
-	DescribeTable("flattenKindConfigNetworking - converts map to v1alpha4.Networking",
-		func(input map[string]any, validator func(v1alpha4.Networking)) {
-			result, err := flattenKindConfigNetworking(input)
-			assertNoError(err, "flattenKindConfigNetworking should not return an error")
-			validator(result)
+			validator: func(t *testing.T, result v1alpha4.Node) {
+				t.Helper()
+				assert.Len(
+					t,
+					result.KubeadmConfigPatches,
+					2,
+					"should have 2 kubeadm config patches",
+				)
+				assert.Equal(
+					t,
+					"patch1",
+					result.KubeadmConfigPatches[0],
+					"first patch should be patch1",
+				)
+				assert.Equal(
+					t,
+					"patch2",
+					result.KubeadmConfigPatches[1],
+					"second patch should be patch2",
+				)
+			},
 		},
-		Entry("networking with API server settings",
-			map[string]any{
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := flattenKindConfigNodes(tt.input)
+			require.NoError(t, err, "flattenKindConfigNodes should not return an error")
+			tt.validator(t, result)
+		})
+	}
+}
+
+func TestFlattenKindConfigNetworking(t *testing.T) {
+	tests := []struct {
+		input     map[string]any
+		validator func(t *testing.T, result v1alpha4.Networking)
+		name      string
+	}{
+		{
+			name: "networking with API server settings",
+			input: map[string]any{
 				"api_server_address": testAPIServerAddress,
 				"api_server_port":    testAPIServerPort,
 			},
-			func(result v1alpha4.Networking) {
-				Expect(result.APIServerAddress).To(Equal(testAPIServerAddress), "API server address should be set correctly")
-				Expect(result.APIServerPort).To(Equal(int32(testAPIServerPort)), "API server port should be set correctly")
-			}),
-		Entry("networking with IPv4 family",
-			map[string]any{"ip_family": "ipv4"},
-			func(result v1alpha4.Networking) {
-				Expect(result.IPFamily).To(Equal(v1alpha4.IPv4Family), "IP family should be ipv4")
-			}),
-		Entry("networking with IPv6 family",
-			map[string]any{"ip_family": "ipv6"},
-			func(result v1alpha4.Networking) {
-				Expect(result.IPFamily).To(Equal(v1alpha4.IPv6Family), "IP family should be ipv6")
-			}),
-		Entry("networking with dual stack family",
-			map[string]any{"ip_family": "dual"},
-			func(result v1alpha4.Networking) {
-				Expect(result.IPFamily).To(Equal(v1alpha4.DualStackFamily), "IP family should be dual stack")
-			}),
-		Entry("networking with kube proxy mode",
-			map[string]any{"kube_proxy_mode": "iptables"},
-			func(result v1alpha4.Networking) {
-				Expect(result.KubeProxyMode).To(Equal(v1alpha4.IPTablesProxyMode), "kube proxy mode should be iptables")
-			}),
-		Entry("networking with kube proxy disabled",
-			map[string]any{"kube_proxy_mode": "none"},
-			func(result v1alpha4.Networking) {
-				Expect(result.KubeProxyMode).To(Equal(v1alpha4.ProxyMode("none")), "kube proxy mode should be none")
-			}),
-		Entry("networking with subnets",
-			map[string]any{
+			validator: func(t *testing.T, result v1alpha4.Networking) {
+				t.Helper()
+				assert.Equal(
+					t,
+					testAPIServerAddress,
+					result.APIServerAddress,
+					"API server address should be set correctly",
+				)
+				assert.Equal(
+					t,
+					int32(testAPIServerPort),
+					result.APIServerPort,
+					"API server port should be set correctly",
+				)
+			},
+		},
+		{
+			name:  "networking with IPv4 family",
+			input: map[string]any{"ip_family": "ipv4"},
+			validator: func(t *testing.T, result v1alpha4.Networking) {
+				t.Helper()
+				assert.Equal(t, v1alpha4.IPv4Family, result.IPFamily, "IP family should be ipv4")
+			},
+		},
+		{
+			name:  "networking with IPv6 family",
+			input: map[string]any{"ip_family": "ipv6"},
+			validator: func(t *testing.T, result v1alpha4.Networking) {
+				t.Helper()
+				assert.Equal(t, v1alpha4.IPv6Family, result.IPFamily, "IP family should be ipv6")
+			},
+		},
+		{
+			name:  "networking with dual stack family",
+			input: map[string]any{"ip_family": "dual"},
+			validator: func(t *testing.T, result v1alpha4.Networking) {
+				t.Helper()
+				assert.Equal(
+					t,
+					v1alpha4.DualStackFamily,
+					result.IPFamily,
+					"IP family should be dual stack",
+				)
+			},
+		},
+		{
+			name:  "networking with kube proxy mode",
+			input: map[string]any{"kube_proxy_mode": "iptables"},
+			validator: func(t *testing.T, result v1alpha4.Networking) {
+				t.Helper()
+				assert.Equal(
+					t,
+					v1alpha4.IPTablesProxyMode,
+					result.KubeProxyMode,
+					"kube proxy mode should be iptables",
+				)
+			},
+		},
+		{
+			name:  "networking with kube proxy disabled",
+			input: map[string]any{"kube_proxy_mode": "none"},
+			validator: func(t *testing.T, result v1alpha4.Networking) {
+				t.Helper()
+				assert.Equal(
+					t,
+					v1alpha4.ProxyMode("none"),
+					result.KubeProxyMode,
+					"kube proxy mode should be none",
+				)
+			},
+		},
+		{
+			name: "networking with subnets",
+			input: map[string]any{
 				"pod_subnet":     testPodSubnet,
 				"service_subnet": testServiceSubnet,
 			},
-			func(result v1alpha4.Networking) {
-				Expect(result.PodSubnet).To(Equal(testPodSubnet), "pod subnet should be set correctly")
-				Expect(result.ServiceSubnet).To(Equal(testServiceSubnet), "service subnet should be set correctly")
-			}),
-		Entry("networking with disable default CNI",
-			map[string]any{"disable_default_cni": true},
-			func(result v1alpha4.Networking) {
-				Expect(result.DisableDefaultCNI).To(BeTrue(), "disable default CNI should be true")
-			}),
-		Entry("networking with DNS search",
-			map[string]any{
+			validator: func(t *testing.T, result v1alpha4.Networking) {
+				t.Helper()
+				assert.Equal(
+					t,
+					testPodSubnet,
+					result.PodSubnet,
+					"pod subnet should be set correctly",
+				)
+				assert.Equal(
+					t,
+					testServiceSubnet,
+					result.ServiceSubnet,
+					"service subnet should be set correctly",
+				)
+			},
+		},
+		{
+			name:  "networking with disable default CNI",
+			input: map[string]any{"disable_default_cni": true},
+			validator: func(t *testing.T, result v1alpha4.Networking) {
+				t.Helper()
+				assert.True(t, result.DisableDefaultCNI, "disable default CNI should be true")
+			},
+		},
+		{
+			name: "networking with DNS search",
+			input: map[string]any{
 				"dns_search": []any{"example.com", "test.local"},
 			},
-			func(result v1alpha4.Networking) {
-				Expect(result.DNSSearch).NotTo(BeNil(), "DNS search should not be nil")
-				Expect(*result.DNSSearch).To(HaveLen(2), "DNS search should have 2 entries")
-				Expect((*result.DNSSearch)[0]).To(Equal("example.com"), "first DNS search entry should be example.com")
-				Expect((*result.DNSSearch)[1]).To(Equal("test.local"), "second DNS search entry should be test.local")
-			}),
-	)
-
-	DescribeTable("flattenKindConfigExtraMounts - converts map to v1alpha4.Mount",
-		func(input map[string]any, validator func(v1alpha4.Mount)) {
-			result := flattenKindConfigExtraMounts(input)
-			validator(result)
+			validator: func(t *testing.T, result v1alpha4.Networking) {
+				t.Helper()
+				require.NotNil(t, result.DNSSearch, "DNS search should not be nil")
+				assert.Len(t, *result.DNSSearch, 2, "DNS search should have 2 entries")
+				assert.Equal(
+					t,
+					"example.com",
+					(*result.DNSSearch)[0],
+					"first DNS search entry should be example.com",
+				)
+				assert.Equal(
+					t,
+					"test.local",
+					(*result.DNSSearch)[1],
+					"second DNS search entry should be test.local",
+				)
+			},
 		},
-		Entry("basic mount",
-			map[string]any{
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := flattenKindConfigNetworking(tt.input)
+			require.NoError(t, err, "flattenKindConfigNetworking should not return an error")
+			tt.validator(t, result)
+		})
+	}
+}
+
+func TestFlattenKindConfigExtraMounts(t *testing.T) {
+	tests := []struct {
+		input     map[string]any
+		validator func(t *testing.T, result v1alpha4.Mount)
+		name      string
+	}{
+		{
+			name: "basic mount",
+			input: map[string]any{
 				"host_path":      testHostPath,
 				"container_path": testContainerPath,
 			},
-			func(result v1alpha4.Mount) {
-				Expect(result.HostPath).To(Equal(testHostPath), "host path should be set correctly")
-				Expect(result.ContainerPath).To(Equal(testContainerPath), "container path should be set correctly")
-			}),
-		Entry("mount with bidirectional propagation",
-			map[string]any{
+			validator: func(t *testing.T, result v1alpha4.Mount) {
+				t.Helper()
+				assert.Equal(t, testHostPath, result.HostPath, "host path should be set correctly")
+				assert.Equal(
+					t,
+					testContainerPath,
+					result.ContainerPath,
+					"container path should be set correctly",
+				)
+			},
+		},
+		{
+			name: "mount with bidirectional propagation",
+			input: map[string]any{
 				"host_path":      testHostPath,
 				"container_path": testContainerPath,
 				"propagation":    "Bidirectional",
 			},
-			func(result v1alpha4.Mount) {
-				Expect(result.Propagation).To(Equal(v1alpha4.MountPropagationBidirectional), "propagation should be bidirectional")
-			}),
-		Entry("mount with HostToContainer propagation",
-			map[string]any{
+			validator: func(t *testing.T, result v1alpha4.Mount) {
+				t.Helper()
+				assert.Equal(
+					t,
+					v1alpha4.MountPropagationBidirectional,
+					result.Propagation,
+					"propagation should be bidirectional",
+				)
+			},
+		},
+		{
+			name: "mount with HostToContainer propagation",
+			input: map[string]any{
 				"host_path":      testHostPath,
 				"container_path": testContainerPath,
 				"propagation":    "HostToContainer",
 			},
-			func(result v1alpha4.Mount) {
-				Expect(result.Propagation).To(Equal(v1alpha4.MountPropagationHostToContainer), "propagation should be host to container")
-			}),
-		Entry("mount with None propagation",
-			map[string]any{
+			validator: func(t *testing.T, result v1alpha4.Mount) {
+				t.Helper()
+				assert.Equal(
+					t,
+					v1alpha4.MountPropagationHostToContainer,
+					result.Propagation,
+					"propagation should be host to container",
+				)
+			},
+		},
+		{
+			name: "mount with None propagation",
+			input: map[string]any{
 				"host_path":      testHostPath,
 				"container_path": testContainerPath,
 				"propagation":    "None",
 			},
-			func(result v1alpha4.Mount) {
-				Expect(result.Propagation).To(Equal(v1alpha4.MountPropagationNone), "propagation should be none")
-			}),
-		Entry("mount with read only flag",
-			map[string]any{
+			validator: func(t *testing.T, result v1alpha4.Mount) {
+				t.Helper()
+				assert.Equal(
+					t,
+					v1alpha4.MountPropagationNone,
+					result.Propagation,
+					"propagation should be none",
+				)
+			},
+		},
+		{
+			name: "mount with read only flag",
+			input: map[string]any{
 				"host_path":      testHostPath,
 				"container_path": testContainerPath,
 				"read_only":      true,
 			},
-			func(result v1alpha4.Mount) {
-				Expect(result.Readonly).To(BeTrue(), "read only flag should be true")
-			}),
-		Entry("mount with selinux relabel",
-			map[string]any{
+			validator: func(t *testing.T, result v1alpha4.Mount) {
+				t.Helper()
+				assert.True(t, result.Readonly, "read only flag should be true")
+			},
+		},
+		{
+			name: "mount with selinux relabel",
+			input: map[string]any{
 				"host_path":       testHostPath,
 				"container_path":  testContainerPath,
 				"selinux_relabel": true,
 			},
-			func(result v1alpha4.Mount) {
-				Expect(result.SelinuxRelabel).To(BeTrue(), "selinux relabel should be true")
-			}),
-	)
-
-	DescribeTable("flattenKindConfigExtraPortMappings - converts map to v1alpha4.PortMapping",
-		func(input map[string]any, validator func(v1alpha4.PortMapping)) {
-			result, err := flattenKindConfigExtraPortMappings(input)
-			assertNoError(err, "flattenKindConfigExtraPortMappings should not return an error")
-			validator(result)
+			validator: func(t *testing.T, result v1alpha4.Mount) {
+				t.Helper()
+				assert.True(t, result.SelinuxRelabel, "selinux relabel should be true")
+			},
 		},
-		Entry("basic port mapping",
-			map[string]any{
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := flattenKindConfigExtraMounts(tt.input)
+			tt.validator(t, result)
+		})
+	}
+}
+
+func TestFlattenKindConfigExtraPortMappings(t *testing.T) {
+	tests := []struct {
+		input     map[string]any
+		validator func(t *testing.T, result v1alpha4.PortMapping)
+		name      string
+	}{
+		{
+			name: "basic port mapping",
+			input: map[string]any{
 				"container_port": testContainerPort,
 				"host_port":      testHostPort,
 			},
-			func(result v1alpha4.PortMapping) {
-				Expect(result.ContainerPort).To(Equal(int32(testContainerPort)), "container port should be set correctly")
-				Expect(result.HostPort).To(Equal(int32(testHostPort)), "host port should be set correctly")
-			}),
-		Entry("port mapping with listen address",
-			map[string]any{
+			validator: func(t *testing.T, result v1alpha4.PortMapping) {
+				t.Helper()
+				assert.Equal(
+					t,
+					int32(testContainerPort),
+					result.ContainerPort,
+					"container port should be set correctly",
+				)
+				assert.Equal(
+					t,
+					int32(testHostPort),
+					result.HostPort,
+					"host port should be set correctly",
+				)
+			},
+		},
+		{
+			name: "port mapping with listen address",
+			input: map[string]any{
 				"container_port": testContainerPort,
 				"host_port":      testHostPort,
 				"listen_address": testListenAddress,
 			},
-			func(result v1alpha4.PortMapping) {
-				Expect(result.ListenAddress).To(Equal(testListenAddress), "listen address should be set correctly")
-			}),
-		Entry("port mapping with TCP protocol",
-			map[string]any{
+			validator: func(t *testing.T, result v1alpha4.PortMapping) {
+				t.Helper()
+				assert.Equal(
+					t,
+					testListenAddress,
+					result.ListenAddress,
+					"listen address should be set correctly",
+				)
+			},
+		},
+		{
+			name: "port mapping with TCP protocol",
+			input: map[string]any{
 				"container_port": testContainerPort,
 				"host_port":      testHostPort,
 				"protocol":       "TCP",
 			},
-			func(result v1alpha4.PortMapping) {
-				Expect(result.Protocol).To(Equal(v1alpha4.PortMappingProtocolTCP), "protocol should be TCP")
-			}),
-		Entry("port mapping with UDP protocol",
-			map[string]any{
+			validator: func(t *testing.T, result v1alpha4.PortMapping) {
+				t.Helper()
+				assert.Equal(
+					t,
+					v1alpha4.PortMappingProtocolTCP,
+					result.Protocol,
+					"protocol should be TCP",
+				)
+			},
+		},
+		{
+			name: "port mapping with UDP protocol",
+			input: map[string]any{
 				"container_port": 53,
 				"host_port":      5353,
 				"protocol":       "UDP",
 			},
-			func(result v1alpha4.PortMapping) {
-				Expect(result.Protocol).To(Equal(v1alpha4.PortMappingProtocolUDP), "protocol should be UDP")
-			}),
-		Entry("port mapping with SCTP protocol",
-			map[string]any{
+			validator: func(t *testing.T, result v1alpha4.PortMapping) {
+				t.Helper()
+				assert.Equal(
+					t,
+					v1alpha4.PortMappingProtocolUDP,
+					result.Protocol,
+					"protocol should be UDP",
+				)
+			},
+		},
+		{
+			name: "port mapping with SCTP protocol",
+			input: map[string]any{
 				"container_port": 9999,
 				"host_port":      9999,
 				"protocol":       "SCTP",
 			},
-			func(result v1alpha4.PortMapping) {
-				Expect(result.Protocol).To(Equal(v1alpha4.PortMappingProtocolSCTP), "protocol should be SCTP")
-			}),
-	)
-})
+			validator: func(t *testing.T, result v1alpha4.PortMapping) {
+				t.Helper()
+				assert.Equal(
+					t,
+					v1alpha4.PortMappingProtocolSCTP,
+					result.Protocol,
+					"protocol should be SCTP",
+				)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := flattenKindConfigExtraPortMappings(tt.input)
+			require.NoError(t, err, "flattenKindConfigExtraPortMappings should not return an error")
+			tt.validator(t, result)
+		})
+	}
+}

@@ -1,5 +1,5 @@
 /*
-   Copyright 2025 Sumicare
+   Copyright 2026 Sumicare
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -17,24 +17,24 @@
 package kind
 
 import (
-	"context"
 	"math/big"
+	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Test data constants for reusability across tests.
-var (
+const (
 	testKey         = "k"
-	emptyMap        = make(map[string]any)
 	testStringValue = "test"
 	testIntValue    = 42
 	testFloatValue  = 3.14
 )
+
+var emptyMap = make(map[string]any)
 
 // mustParseBigFloat parses a string to big.Float or panics on error.
 //
@@ -48,236 +48,673 @@ func mustParseBigFloat(s string) *big.Float {
 	return f
 }
 
-// assertNilOrEqual checks if actual is nil when expected is nil, otherwise checks equality.
-func assertNilOrEqual(actual, expected any, expectNil bool, message string) {
-	if expectNil {
-		Expect(actual).To(BeNil(), message)
-	} else {
-		Expect(actual).To(Equal(expected), message)
+func TestGetStringSlice(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    map[string]any
+		key      string
+		expected []string
+		isNil    bool
+	}{
+		{
+			name:     "extracts all strings",
+			input:    map[string]any{testKey: []any{"a", "b", "c"}},
+			key:      testKey,
+			expected: []string{"a", "b", "c"},
+			isNil:    false,
+		},
+		{
+			name:     "filters out non-strings",
+			input:    map[string]any{testKey: []any{"a", 123, "b"}},
+			key:      testKey,
+			expected: []string{"a", "b"},
+			isNil:    false,
+		},
+		{
+			name:     "handles empty slice",
+			input:    map[string]any{testKey: make([]any, 0)},
+			key:      testKey,
+			expected: []string{},
+			isNil:    false,
+		},
+		{
+			name:     "missing key returns nil",
+			input:    emptyMap,
+			key:      testKey,
+			expected: nil,
+			isNil:    true,
+		},
+		{
+			name:     "nil value returns nil",
+			input:    map[string]any{testKey: nil},
+			key:      testKey,
+			expected: nil,
+			isNil:    true,
+		},
+		{
+			name:     "wrong type returns nil",
+			input:    map[string]any{testKey: testStringValue},
+			key:      testKey,
+			expected: nil,
+			isNil:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getStringSlice(tt.input, tt.key)
+			if tt.isNil {
+				assert.Nil(t, result, "getStringSlice should return nil for invalid inputs")
+			} else {
+				assert.Equal(
+					t,
+					tt.expected,
+					result,
+					"getStringSlice should handle all input types correctly",
+				)
+			}
+		})
 	}
 }
 
-// Test suite for utility functions used in Kind provider.
-var _ = Describe("Utils", func() {
-	DescribeTable("getString - extracts string values from maps",
-		func(input map[string]any, key, expected string) {
-			result := getString(input, key)
-			Expect(result).To(Equal(expected), "getString should handle all input types correctly")
+func TestGetMapSlice(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       map[string]any
+		key         string
+		expectedLen int
+		isNil       bool
+	}{
+		{
+			name: "extracts all maps",
+			input: map[string]any{
+				testKey: []any{map[string]any{"a": 1}, map[string]any{"b": 2}},
+			},
+			key:         testKey,
+			expectedLen: 2,
+			isNil:       false,
 		},
-		Entry("valid string value", map[string]any{testKey: testStringValue}, testKey, testStringValue),
-		Entry("missing key returns empty", emptyMap, testKey, ""),
-		Entry("nil value returns empty", map[string]any{testKey: nil}, testKey, ""),
-		Entry("wrong type returns empty", map[string]any{testKey: testIntValue}, testKey, ""),
-	)
-
-	DescribeTable("getInt - extracts integer values from maps",
-		func(input map[string]any, key string, expected int) {
-			result := getInt(input, key)
-			Expect(result).To(Equal(expected), "getInt should handle all input types correctly")
+		{
+			name: "filters out non-maps",
+			input: map[string]any{
+				testKey: []any{map[string]any{"a": 1}, testStringValue, map[string]any{"b": 2}},
+			},
+			key:         testKey,
+			expectedLen: 2,
+			isNil:       false,
 		},
-		Entry("valid int value", map[string]any{testKey: testIntValue}, testKey, testIntValue),
-		Entry("missing key returns zero", emptyMap, testKey, 0),
-		Entry("nil value returns zero", map[string]any{testKey: nil}, testKey, 0),
-		Entry("wrong type returns zero", map[string]any{testKey: testStringValue}, testKey, 0),
-	)
-
-	DescribeTable("getBool - extracts boolean values from maps",
-		func(input map[string]any, key string, expected bool) {
-			result := getBool(input, key)
-			Expect(result).To(Equal(expected), "getBool should handle all input types correctly")
+		{
+			name:        "handles empty slice",
+			input:       map[string]any{testKey: make([]any, 0)},
+			key:         testKey,
+			expectedLen: 0,
+			isNil:       false,
 		},
-		Entry("true value", map[string]any{testKey: true}, testKey, true),
-		Entry("false value", map[string]any{testKey: false}, testKey, false),
-		Entry("missing key returns false", emptyMap, testKey, false),
-		Entry("nil value returns false", map[string]any{testKey: nil}, testKey, false),
-		Entry("wrong type returns false", map[string]any{testKey: "true"}, testKey, false),
-	)
-
-	DescribeTable("getStringSlice - extracts string slices from maps",
-		func(input map[string]any, key string, expected []string, expectNil bool) {
-			result := getStringSlice(input, key)
-			assertNilOrEqual(result, expected, expectNil, "getStringSlice should handle all input types correctly")
+		{
+			name:        "missing key returns nil",
+			input:       emptyMap,
+			key:         testKey,
+			expectedLen: 0,
+			isNil:       true,
 		},
-		Entry("extracts all strings", map[string]any{testKey: []any{"a", "b", "c"}}, testKey, []string{"a", "b", "c"}, false),
-		Entry("filters out non-strings", map[string]any{testKey: []any{"a", 123, "b"}}, testKey, []string{"a", "b"}, false),
-		Entry("handles empty slice", map[string]any{testKey: make([]any, 0)}, testKey, []string{}, false),
-		Entry("missing key returns nil", emptyMap, testKey, nil, true),
-		Entry("nil value returns nil", map[string]any{testKey: nil}, testKey, nil, true),
-		Entry("wrong type returns nil", map[string]any{testKey: testStringValue}, testKey, nil, true),
-	)
+		{
+			name:        "wrong type returns nil",
+			input:       map[string]any{testKey: testStringValue},
+			key:         testKey,
+			expectedLen: 0,
+			isNil:       true,
+		},
+	}
 
-	DescribeTable("getMapSlice - extracts map slices from maps",
-		func(input map[string]any, key string, expectedLen int, expectNil bool) {
-			result := getMapSlice(input, key)
-			if expectNil {
-				Expect(result).To(BeNil(), "getMapSlice should return nil for invalid inputs")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getMapSlice(tt.input, tt.key)
+			if tt.isNil {
+				assert.Nil(t, result, "getMapSlice should return nil for invalid inputs")
 			} else {
-				Expect(result).To(HaveLen(expectedLen), "getMapSlice should return correct slice length")
+				assert.Len(
+					t,
+					result,
+					tt.expectedLen,
+					"getMapSlice should return correct slice length",
+				)
 			}
-		},
-		Entry("extracts all maps", map[string]any{testKey: []any{map[string]any{"a": 1}, map[string]any{"b": 2}}}, testKey, 2, false),
-		Entry("filters out non-maps", map[string]any{testKey: []any{map[string]any{"a": 1}, testStringValue, map[string]any{"b": 2}}}, testKey, 2, false),
-		Entry("handles empty slice", map[string]any{testKey: make([]any, 0)}, testKey, 0, false),
-		Entry("missing key returns nil", emptyMap, testKey, 0, true),
-		Entry("wrong type returns nil", map[string]any{testKey: testStringValue}, testKey, 0, true),
-	)
+		})
+	}
+}
 
-	DescribeTable("getStringMap - extracts string maps from maps",
-		func(input map[string]any, key string, expected map[string]string, expectNil bool) {
-			result := getStringMap(input, key)
-			assertNilOrEqual(result, expected, expectNil, "getStringMap should handle all input types correctly")
+func TestGetStringMap(t *testing.T) {
+	tests := []struct {
+		input    map[string]any
+		expected map[string]string
+		name     string
+		key      string
+		isNil    bool
+	}{
+		{
+			name:     "extracts all string values",
+			input:    map[string]any{testKey: map[string]any{"a": "v1", "b": "v2"}},
+			key:      testKey,
+			expected: map[string]string{"a": "v1", "b": "v2"},
+			isNil:    false,
 		},
-		Entry("extracts all string values", map[string]any{testKey: map[string]any{"a": "v1", "b": "v2"}}, testKey, map[string]string{"a": "v1", "b": "v2"}, false),
-		Entry("filters out non-strings", map[string]any{testKey: map[string]any{"a": "v1", "b": 123}}, testKey, map[string]string{"a": "v1"}, false),
-		Entry("handles empty map", map[string]any{testKey: make(map[string]any)}, testKey, map[string]string{}, false),
-		Entry("missing key returns nil", emptyMap, testKey, nil, true),
-		Entry("nil value returns nil", map[string]any{testKey: nil}, testKey, nil, true),
-		Entry("wrong type returns nil", map[string]any{testKey: testStringValue}, testKey, nil, true),
-	)
+		{
+			name:     "filters out non-strings",
+			input:    map[string]any{testKey: map[string]any{"a": "v1", "b": 123}},
+			key:      testKey,
+			expected: map[string]string{"a": "v1"},
+			isNil:    false,
+		},
+		{
+			name:     "handles empty map",
+			input:    map[string]any{testKey: make(map[string]any)},
+			key:      testKey,
+			expected: map[string]string{},
+			isNil:    false,
+		},
+		{
+			name:     "missing key returns nil",
+			input:    emptyMap,
+			key:      testKey,
+			expected: nil,
+			isNil:    true,
+		},
+		{
+			name:     "nil value returns nil",
+			input:    map[string]any{testKey: nil},
+			key:      testKey,
+			expected: nil,
+			isNil:    true,
+		},
+		{
+			name:     "wrong type returns nil",
+			input:    map[string]any{testKey: testStringValue},
+			key:      testKey,
+			expected: nil,
+			isNil:    true,
+		},
+	}
 
-	DescribeTable("normalizeToml - processes TOML input",
-		func(input any, expected string, expectErr, contains bool) {
-			result, err := normalizeToml(input)
-			if expectErr {
-				Expect(err).To(HaveOccurred(), "normalizeToml should return error for invalid input")
-				Expect(result).To(Equal(expected), "normalizeToml should return input on error")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getStringMap(tt.input, tt.key)
+			if tt.isNil {
+				assert.Nil(t, result, "getStringMap should return nil for invalid inputs")
 			} else {
-				Expect(err).NotTo(HaveOccurred(), "normalizeToml should not return error for valid input")
-				if contains {
-					Expect(result).To(ContainSubstring(expected), "normalizeToml should contain expected substring")
+				assert.Equal(
+					t,
+					tt.expected,
+					result,
+					"getStringMap should handle all input types correctly",
+				)
+			}
+		})
+	}
+}
+
+func TestNormalizeToml(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     any
+		expected  string
+		expectErr bool
+		contains  bool
+	}{
+		{
+			name:      "handles empty string",
+			input:     "",
+			expected:  "",
+			expectErr: false,
+			contains:  false,
+		},
+		{
+			name:      "handles nil input",
+			input:     nil,
+			expected:  "",
+			expectErr: false,
+			contains:  false,
+		},
+		{
+			name:      "handles non-string input",
+			input:     123,
+			expected:  "",
+			expectErr: false,
+			contains:  false,
+		},
+		{
+			name:      "parses valid TOML",
+			input:     `title = "Test"`,
+			expected:  "title",
+			expectErr: false,
+			contains:  true,
+		},
+		{
+			name:      "returns error for invalid TOML",
+			input:     `invalid [[[`,
+			expected:  `invalid [[[`,
+			expectErr: true,
+			contains:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := normalizeToml(tt.input)
+			if tt.expectErr {
+				require.Error(t, err, "normalizeToml should return error for invalid input")
+				assert.Equal(t, tt.expected, result, "normalizeToml should return input on error")
+			} else {
+				assert.NoError(t, err, "normalizeToml should not return error for valid input")
+
+				if tt.contains {
+					assert.Contains(
+						t,
+						result,
+						tt.expected,
+						"normalizeToml should contain expected substring",
+					)
 				} else {
-					Expect(result).To(Equal(expected), "normalizeToml should return expected result")
+					assert.Equal(
+						t,
+						tt.expected,
+						result,
+						"normalizeToml should return expected result",
+					)
 				}
 			}
-		},
-		Entry("handles empty string", "", "", false, false),
-		Entry("handles nil input", nil, "", false, false),
-		Entry("handles non-string input", 123, "", false, false),
-		Entry("parses valid TOML", `title = "Test"`, "title", false, true),
-		Entry("returns error for invalid TOML", `invalid [[[`, `invalid [[[`, true, false),
-	)
+		})
+	}
+}
 
-	DescribeTable("objectToMap - converts Terraform objects to Go maps",
-		func(input types.Object, expected map[string]any, expectNil bool) {
-			result := objectToMap(input)
-			assertNilOrEqual(result, expected, expectNil, "objectToMap should handle all object types correctly")
+func TestObjectToMap(t *testing.T) {
+	tests := []struct {
+		expected map[string]any
+		input    types.Object
+		name     string
+		isNil    bool
+	}{
+		{
+			name:     "null object returns nil",
+			input:    types.ObjectNull(make(map[string]attr.Type)),
+			expected: nil,
+			isNil:    true,
 		},
-		Entry("null object returns nil", types.ObjectNull(make(map[string]attr.Type)), nil, true),
-		Entry("unknown object returns nil", types.ObjectUnknown(map[string]attr.Type{testKey: types.StringType}), nil, true),
-		Entry("empty object returns empty map", types.ObjectValueMust(make(map[string]attr.Type), make(map[string]attr.Value)), map[string]any{}, false),
-		Entry("object with fields extracts correctly",
-			types.ObjectValueMust(
-				map[string]attr.Type{"name": types.StringType, "age": types.Int64Type},
-				map[string]attr.Value{"name": types.StringValue(testStringValue), "age": types.Int64Value(int64(testIntValue))},
+		{
+			name:     "unknown object returns nil",
+			input:    types.ObjectUnknown(map[string]attr.Type{testKey: types.StringType}),
+			expected: nil,
+			isNil:    true,
+		},
+		{
+			name: "empty object returns empty map",
+			input: types.ObjectValueMust(
+				make(map[string]attr.Type),
+				make(map[string]attr.Value),
 			),
-			map[string]any{"name": testStringValue, "age": testIntValue}, false),
-	)
-
-	DescribeTable("listToSlice - converts Terraform lists to Go slices",
-		func(input types.List, expected []any, expectNil bool) {
-			result := listToSlice(input)
-			assertNilOrEqual(result, expected, expectNil, "listToSlice should handle all list types correctly")
+			expected: map[string]any{},
+			isNil:    false,
 		},
-		Entry("null list returns nil", types.ListNull(types.StringType), nil, true),
-		Entry("unknown list returns nil", types.ListUnknown(types.StringType), nil, true),
-		Entry("empty list returns empty slice", types.ListValueMust(types.StringType, make([]attr.Value, 0)), []any{}, false),
-		Entry("list with values extracts correctly", types.ListValueMust(types.StringType, []attr.Value{types.StringValue("a"), types.StringValue("b")}), []any{"a", "b"}, false),
-	)
-
-	DescribeTable("setToSlice - converts Terraform sets to Go slices",
-		func(input types.Set, expected []any, expectNil bool) {
-			result := setToSlice(input)
-			assertNilOrEqual(result, expected, expectNil, "setToSlice should handle all set types correctly")
+		{
+			name: "object with fields extracts correctly",
+			input: types.ObjectValueMust(
+				map[string]attr.Type{"name": types.StringType, "age": types.Int64Type},
+				map[string]attr.Value{
+					"name": types.StringValue(testStringValue),
+					"age":  types.Int64Value(int64(testIntValue)),
+				},
+			),
+			expected: map[string]any{"name": testStringValue, "age": testIntValue},
+			isNil:    false,
 		},
-		Entry("null set returns nil", types.SetNull(types.StringType), nil, true),
-		Entry("unknown set returns nil", types.SetUnknown(types.StringType), nil, true),
-		Entry("empty set returns empty slice", types.SetValueMust(types.StringType, make([]attr.Value, 0)), []any{}, false),
-		Entry("set with values extracts correctly", types.SetValueMust(types.StringType, []attr.Value{types.StringValue("x")}), []any{"x"}, false),
-	)
+	}
 
-	DescribeTable("mapToMap - converts Terraform maps to Go maps",
-		func(input types.Map, expected map[string]any, expectNil bool) {
-			result := mapToMap(input)
-			assertNilOrEqual(result, expected, expectNil, "mapToMap should handle all map types correctly")
-		},
-		Entry("null map returns nil", types.MapNull(types.StringType), nil, true),
-		Entry("unknown map returns nil", types.MapUnknown(types.StringType), nil, true),
-		Entry("empty map returns empty map", types.MapValueMust(types.StringType, make(map[string]attr.Value)), map[string]any{}, false),
-		Entry("map with values extracts correctly",
-			types.MapValueMust(types.StringType, map[string]attr.Value{"k1": types.StringValue("v1"), "k2": types.StringValue("v2")}),
-			map[string]any{"k1": "v1", "k2": "v2"},
-			false),
-	)
-
-	DescribeTable("attrValueToAny - converts Terraform attribute values to Go types",
-		func(input attr.Value, expected any, matcher OmegaMatcher) {
-			result := attrValueToAny(input)
-			Expect(result).To(matcher, "attrValueToAny should convert attribute values correctly")
-			if expected != nil {
-				Expect(result).To(Equal(expected), "attrValueToAny should return expected value")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := objectToMap(tt.input)
+			if tt.isNil {
+				assert.Nil(t, result, "objectToMap should return nil for null/unknown objects")
+			} else {
+				assert.Equal(
+					t,
+					tt.expected,
+					result,
+					"objectToMap should handle all object types correctly",
+				)
 			}
+		})
+	}
+}
+
+func TestListToSlice(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    types.List
+		expected []any
+		isNil    bool
+	}{
+		{
+			name:     "null list returns nil",
+			input:    types.ListNull(types.StringType),
+			expected: nil,
+			isNil:    true,
 		},
-		Entry("string value converts correctly", types.StringValue(testStringValue), testStringValue, Equal(testStringValue)),
-		Entry("bool value converts correctly", types.BoolValue(true), true, BeTrue()),
-		Entry("int64 value converts correctly", types.Int64Value(int64(testIntValue)), testIntValue, Equal(testIntValue)),
-		Entry("float64 value converts correctly", types.Float64Value(testFloatValue), testFloatValue, Equal(testFloatValue)),
-		Entry("number value converts correctly", types.NumberValue(mustParseBigFloat("42.5")), 42.5, BeNumerically("~", 42.5, 0.01)),
-		Entry("null string returns nil", types.StringNull(), nil, BeNil()),
-		Entry("unknown string returns nil", types.StringUnknown(), nil, BeNil()),
-		Entry("list converts to slice",
-			types.ListValueMust(types.StringType, []attr.Value{types.StringValue("a"), types.StringValue("b")}),
-			[]any{"a", "b"},
-			And(BeAssignableToTypeOf(make([]any, 0)), HaveLen(2))),
-		Entry("set converts to slice",
-			types.SetValueMust(types.StringType, []attr.Value{types.StringValue("x")}),
-			[]any{"x"},
-			BeAssignableToTypeOf(make([]any, 0))),
-		Entry("map converts to map[string]any",
-			types.MapValueMust(types.StringType, map[string]attr.Value{testKey: types.StringValue("v")}),
-			map[string]any{testKey: "v"},
-			BeAssignableToTypeOf(make(map[string]any))),
-		Entry("object converts to map[string]any",
-			types.ObjectValueMust(map[string]attr.Type{"n": types.StringType}, map[string]attr.Value{"n": types.StringValue("t")}),
-			map[string]any{"n": "t"},
-			BeAssignableToTypeOf(make(map[string]any))),
-	)
+		{
+			name:     "unknown list returns nil",
+			input:    types.ListUnknown(types.StringType),
+			expected: nil,
+			isNil:    true,
+		},
+		{
+			name:     "empty list returns empty slice",
+			input:    types.ListValueMust(types.StringType, make([]attr.Value, 0)),
+			expected: []any{},
+			isNil:    false,
+		},
+		{
+			name: "list with values extracts correctly",
+			input: types.ListValueMust(
+				types.StringType,
+				[]attr.Value{types.StringValue("a"), types.StringValue("b")},
+			),
+			expected: []any{"a", "b"},
+			isNil:    false,
+		},
+	}
 
-	Describe("parseKindConfigFromFramework", func() {
-		var ctx context.Context
-
-		BeforeEach(func() {
-			ctx = context.Background()
-		})
-
-		It("handles null and empty lists correctly", func() {
-			// Test null list
-			result, err := parseKindConfigFromFramework(ctx, types.ListNull(types.ObjectType{}))
-			Expect(err).NotTo(HaveOccurred(), "should handle null list without error")
-			Expect(result).To(BeNil(), "should return nil for null list")
-
-			// Test empty list
-			result, err = parseKindConfigFromFramework(ctx, types.ListValueMust(types.ObjectType{}, make([]attr.Value, 0)))
-			Expect(err).NotTo(HaveOccurred(), "should handle empty list without error")
-			Expect(result).To(BeNil(), "should return nil for empty list")
-		})
-
-		It("parses valid kind configuration correctly", func() {
-			// Create object type and value for Kind configuration
-			objType := map[string]attr.Type{
-				"kind":        types.StringType,
-				"api_version": types.StringType,
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := listToSlice(tt.input)
+			if tt.isNil {
+				assert.Nil(t, result, "listToSlice should return nil for null/unknown lists")
+			} else {
+				assert.Equal(
+					t,
+					tt.expected,
+					result,
+					"listToSlice should handle all list types correctly",
+				)
 			}
-			obj := types.ObjectValueMust(objType, map[string]attr.Value{
-				"kind":        types.StringValue("Cluster"),
-				"api_version": types.StringValue("kind.x-k8s.io/v1alpha4"),
-			})
-			list := types.ListValueMust(types.ObjectType{AttrTypes: objType}, []attr.Value{obj})
-
-			result, err := parseKindConfigFromFramework(ctx, list)
-			Expect(err).NotTo(HaveOccurred(), "should parse valid configuration without error")
-			Expect(result).NotTo(BeNil(), "should return non-nil result for valid configuration")
-			Expect(result.Kind).To(Equal("Cluster"), "should extract Kind field correctly")
-			Expect(result.APIVersion).To(Equal("kind.x-k8s.io/v1alpha4"), "should extract APIVersion field correctly")
 		})
+	}
+}
+
+func TestSetToSlice(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    types.Set
+		expected []any
+		isNil    bool
+	}{
+		{
+			name:     "null set returns nil",
+			input:    types.SetNull(types.StringType),
+			expected: nil,
+			isNil:    true,
+		},
+		{
+			name:     "unknown set returns nil",
+			input:    types.SetUnknown(types.StringType),
+			expected: nil,
+			isNil:    true,
+		},
+		{
+			name:     "empty set returns empty slice",
+			input:    types.SetValueMust(types.StringType, make([]attr.Value, 0)),
+			expected: []any{},
+			isNil:    false,
+		},
+		{
+			name:     "set with values extracts correctly",
+			input:    types.SetValueMust(types.StringType, []attr.Value{types.StringValue("x")}),
+			expected: []any{"x"},
+			isNil:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := setToSlice(tt.input)
+			if tt.isNil {
+				assert.Nil(t, result, "setToSlice should return nil for null/unknown sets")
+			} else {
+				assert.Equal(
+					t,
+					tt.expected,
+					result,
+					"setToSlice should handle all set types correctly",
+				)
+			}
+		})
+	}
+}
+
+func TestMapToMap(t *testing.T) {
+	tests := []struct {
+		expected map[string]any
+		input    types.Map
+		name     string
+		isNil    bool
+	}{
+		{
+			name:     "null map returns nil",
+			input:    types.MapNull(types.StringType),
+			expected: nil,
+			isNil:    true,
+		},
+		{
+			name:     "unknown map returns nil",
+			input:    types.MapUnknown(types.StringType),
+			expected: nil,
+			isNil:    true,
+		},
+		{
+			name:     "empty map returns empty map",
+			input:    types.MapValueMust(types.StringType, make(map[string]attr.Value)),
+			expected: map[string]any{},
+			isNil:    false,
+		},
+		{
+			name: "map with values extracts correctly",
+			input: types.MapValueMust(
+				types.StringType,
+				map[string]attr.Value{"k1": types.StringValue("v1"), "k2": types.StringValue("v2")},
+			),
+			expected: map[string]any{"k1": "v1", "k2": "v2"},
+			isNil:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := mapToMap(tt.input)
+			if tt.isNil {
+				assert.Nil(t, result, "mapToMap should return nil for null/unknown maps")
+			} else {
+				assert.Equal(
+					t,
+					tt.expected,
+					result,
+					"mapToMap should handle all map types correctly",
+				)
+			}
+		})
+	}
+}
+
+func TestAttrValueToAny(t *testing.T) {
+	tests := []struct {
+		input    attr.Value
+		expected any
+		validate func(t *testing.T, result any)
+		name     string
+	}{
+		{
+			name:     "string value converts correctly",
+			input:    types.StringValue(testStringValue),
+			expected: testStringValue,
+			validate: func(t *testing.T, result any) {
+				t.Helper()
+				assert.Equal(t, testStringValue, result)
+			},
+		},
+		{
+			name:     "bool value converts correctly",
+			input:    types.BoolValue(true),
+			expected: true,
+			validate: func(t *testing.T, result any) {
+				t.Helper()
+				assert.Equal(t, true, result)
+			},
+		},
+		{
+			name:     "int64 value converts correctly",
+			input:    types.Int64Value(int64(testIntValue)),
+			expected: testIntValue,
+			validate: func(t *testing.T, result any) {
+				t.Helper()
+				assert.Equal(t, testIntValue, result)
+			},
+		},
+		{
+			name:     "float64 value converts correctly",
+			input:    types.Float64Value(testFloatValue),
+			expected: testFloatValue,
+			validate: func(t *testing.T, result any) {
+				t.Helper()
+				assert.InDelta(t, testFloatValue, result, 0.01)
+			},
+		},
+		{
+			name:     "number value converts correctly",
+			input:    types.NumberValue(mustParseBigFloat("42.5")),
+			expected: 42.5,
+			validate: func(t *testing.T, result any) {
+				t.Helper()
+				assert.InDelta(t, 42.5, result, 0.01)
+			},
+		},
+		{
+			name:     "null string returns nil",
+			input:    types.StringNull(),
+			expected: nil,
+			validate: func(t *testing.T, result any) {
+				t.Helper()
+				assert.Nil(t, result)
+			},
+		},
+		{
+			name:     "unknown string returns nil",
+			input:    types.StringUnknown(),
+			expected: nil,
+			validate: func(t *testing.T, result any) {
+				t.Helper()
+				assert.Nil(t, result)
+			},
+		},
+		{
+			name: "list converts to slice",
+			input: types.ListValueMust(
+				types.StringType,
+				[]attr.Value{types.StringValue("a"), types.StringValue("b")},
+			),
+			validate: func(t *testing.T, result any) {
+				t.Helper()
+
+				slice, ok := result.([]any)
+				require.True(t, ok, "result should be a slice")
+				assert.Len(t, slice, 2)
+			},
+		},
+		{
+			name:  "set converts to slice",
+			input: types.SetValueMust(types.StringType, []attr.Value{types.StringValue("x")}),
+			validate: func(t *testing.T, result any) {
+				t.Helper()
+
+				slice, ok := result.([]any)
+				require.True(t, ok, "result should be a slice")
+				assert.Len(t, slice, 1)
+			},
+		},
+		{
+			name: "map converts to map[string]any",
+			input: types.MapValueMust(
+				types.StringType,
+				map[string]attr.Value{testKey: types.StringValue("v")},
+			),
+			validate: func(t *testing.T, result any) {
+				t.Helper()
+
+				m, ok := result.(map[string]any)
+				require.True(t, ok, "result should be a map[string]any")
+				assert.Equal(t, "v", m[testKey])
+			},
+		},
+		{
+			name: "object converts to map[string]any",
+			input: types.ObjectValueMust(
+				map[string]attr.Type{"n": types.StringType},
+				map[string]attr.Value{"n": types.StringValue("t")},
+			),
+			validate: func(t *testing.T, result any) {
+				t.Helper()
+
+				m, ok := result.(map[string]any)
+				require.True(t, ok, "result should be a map[string]any")
+				assert.Equal(t, "t", m["n"])
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := attrValueToAny(tt.input)
+			tt.validate(t, result)
+		})
+	}
+}
+
+func TestParseKindConfigFromFramework(t *testing.T) {
+	t.Run("handles null and empty lists correctly", func(t *testing.T) {
+		ctx := t.Context()
+
+		// Test null list
+		result, err := parseKindConfigFromFramework(ctx, types.ListNull(types.ObjectType{}))
+		require.NoError(t, err, "should handle null list without error")
+		assert.Nil(t, result, "should return nil for null list")
+
+		// Test empty list
+		result, err = parseKindConfigFromFramework(
+			ctx,
+			types.ListValueMust(types.ObjectType{}, make([]attr.Value, 0)),
+		)
+		require.NoError(t, err, "should handle empty list without error")
+		assert.Nil(t, result, "should return nil for empty list")
 	})
-})
+
+	t.Run("parses valid kind configuration correctly", func(t *testing.T) {
+		ctx := t.Context()
+
+		// Create object type and value for Kind configuration
+		objType := map[string]attr.Type{
+			"kind":        types.StringType,
+			"api_version": types.StringType,
+		}
+		obj := types.ObjectValueMust(objType, map[string]attr.Value{
+			"kind":        types.StringValue("Cluster"),
+			"api_version": types.StringValue("kind.x-k8s.io/v1alpha4"),
+		})
+		list := types.ListValueMust(types.ObjectType{AttrTypes: objType}, []attr.Value{obj})
+
+		result, err := parseKindConfigFromFramework(ctx, list)
+		require.NoError(t, err, "should parse valid configuration without error")
+		require.NotNil(t, result, "should return non-nil result for valid configuration")
+		assert.Equal(t, "Cluster", result.Kind, "should extract Kind field correctly")
+		assert.Equal(
+			t,
+			"kind.x-k8s.io/v1alpha4",
+			result.APIVersion,
+			"should extract APIVersion field correctly",
+		)
+	})
+}

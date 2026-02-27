@@ -1,0 +1,9 @@
+[tools]
+go = "1.25.4"
+node = "25.2.0"
+golangci-lint = "2.6.2"
+goreleaser = "2.12.7"
+ginkgo = "2.27.2"
+jq = "1.8.1"
+opentofu = "1.10.7"
+terraform = "1.13.5"

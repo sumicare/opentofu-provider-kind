@@ -5,14 +5,14 @@ this provider terraform plugin SDK, and more rigorous testing approach.
 
 ## Features
 
-- ✅ Modern Terraform Plugin Framework (not legacy SDKv2)
-- ✅ Full support for Kind v1alpha4 cluster configuration
-- ✅ Comprehensive test coverage with Ginkgo/Gomega
-- ✅ Timeout handling for cluster operations
-- ✅ Support for multi-node and HA clusters
-- ✅ IPv6 and dual-stack networking
-- ✅ Port mappings and volume mounts
-- ✅ Kubeadm and containerd configuration patches
+- Modern Terraform Plugin Framework (not legacy SDKv2)
+- Full support for Kind v1alpha4 cluster configuration
+- Comprehensive test coverage with Ginkgo/Gomega
+- Timeout handling for cluster operations
+- Support for multi-node and HA clusters
+- IPv6 and dual-stack networking
+- Port mappings and volume mounts
+- Kubeadm and containerd configuration patches
 
 ## Quick Start
 

@@ -1,5 +1,5 @@
 /*
-   Copyright 2025 Sumicare
+   Copyright 2026 Sumicare
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -40,8 +40,12 @@ type KindProvider struct {
 
 // Configure prepares the provider for data sources and resources.
 //
-//nolint:gocritic // it's an internal stub
-func (*KindProvider) Configure(_ context.Context, _ provider.ConfigureRequest, _ *provider.ConfigureResponse) {
+
+func (*KindProvider) Configure(
+	_ context.Context,
+	_ provider.ConfigureRequest,
+	_ *provider.ConfigureResponse,
+) {
 	// Provider has no configuration, so nothing to do here
 	// If we needed to configure clients, we would do it here and store in resp.ResourceData
 }
@@ -53,7 +57,11 @@ func (*KindProvider) DataSources(_ context.Context) []func() datasource.DataSour
 }
 
 // Metadata returns the provider type name.
-func (p *KindProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
+func (p *KindProvider) Metadata(
+	_ context.Context,
+	_ provider.MetadataRequest,
+	resp *provider.MetadataResponse,
+) {
 	resp.TypeName = "kind"
 	resp.Version = p.version
 }
@@ -66,7 +74,11 @@ func (*KindProvider) Resources(_ context.Context) []func() resource.Resource {
 }
 
 // Schema defines the provider-level schema for configuration data.
-func (*KindProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
+func (*KindProvider) Schema(
+	_ context.Context,
+	_ provider.SchemaRequest,
+	resp *provider.SchemaResponse,
+) {
 	resp.Schema = schema.Schema{
 		Description: "The Kind provider is used to manage Kind (Kubernetes IN Docker) clusters.",
 	}

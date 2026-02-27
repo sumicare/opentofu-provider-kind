@@ -1,5 +1,5 @@
 /*
-   Copyright 2025 Sumicare
+   Copyright 2026 Sumicare
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -138,7 +138,13 @@ func flattenKindConfigNetworking(networkingConfig map[string]any) (v1alpha4.Netw
 	// Validate and set API server port within int32 range.
 	if port := getInt(networkingConfig, "api_server_port"); port != 0 {
 		if port < math.MinInt32 || port > math.MaxInt32 {
-			return obj, fmt.Errorf("api_server_port value %d (must be between %d and %d): %w", port, math.MinInt32, math.MaxInt32, ErrPortOutOfRange)
+			return obj, fmt.Errorf(
+				"api_server_port value %d (must be between %d and %d): %w",
+				port,
+				math.MinInt32,
+				math.MaxInt32,
+				ErrPortOutOfRange,
+			)
 		}
 
 		obj.APIServerPort = int32(port) // #nosec G115 -- validated range check
@@ -206,7 +212,9 @@ func flattenKindConfigExtraMounts(mountConfig map[string]any) v1alpha4.Mount {
 }
 
 // flattenKindConfigExtraPortMappings converts a map representation of port mapping configuration to v1alpha4.PortMapping.
-func flattenKindConfigExtraPortMappings(portMappingConfig map[string]any) (v1alpha4.PortMapping, error) {
+func flattenKindConfigExtraPortMappings(
+	portMappingConfig map[string]any,
+) (v1alpha4.PortMapping, error) {
 	// Initialize port mapping configuration.
 	obj := v1alpha4.PortMapping{
 		ListenAddress: getString(portMappingConfig, "listen_address"),
@@ -215,7 +223,13 @@ func flattenKindConfigExtraPortMappings(portMappingConfig map[string]any) (v1alp
 	// Validate and set container port within int32 range.
 	if containerPort := getInt(portMappingConfig, "container_port"); containerPort != 0 {
 		if containerPort < math.MinInt32 || containerPort > math.MaxInt32 {
-			return obj, fmt.Errorf("container_port value %d (must be between %d and %d): %w", containerPort, math.MinInt32, math.MaxInt32, ErrPortOutOfRange)
+			return obj, fmt.Errorf(
+				"container_port value %d (must be between %d and %d): %w",
+				containerPort,
+				math.MinInt32,
+				math.MaxInt32,
+				ErrPortOutOfRange,
+			)
 		}
 
 		obj.ContainerPort = int32(containerPort) // #nosec G115 -- validated range check
@@ -224,7 +238,13 @@ func flattenKindConfigExtraPortMappings(portMappingConfig map[string]any) (v1alp
 	// Validate and set host port within int32 range.
 	if hostPort := getInt(portMappingConfig, "host_port"); hostPort != 0 {
 		if hostPort < math.MinInt32 || hostPort > math.MaxInt32 {
-			return obj, fmt.Errorf("host_port value %d (must be between %d and %d): %w", hostPort, math.MinInt32, math.MaxInt32, ErrPortOutOfRange)
+			return obj, fmt.Errorf(
+				"host_port value %d (must be between %d and %d): %w",
+				hostPort,
+				math.MinInt32,
+				math.MaxInt32,
+				ErrPortOutOfRange,
+			)
 		}
 
 		obj.HostPort = int32(hostPort) // #nosec G115 -- validated range check

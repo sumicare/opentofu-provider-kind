@@ -1,5 +1,5 @@
 /*
-   Copyright 2025 Sumicare
+   Copyright 2026 Sumicare
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import (
 	"log"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
-
 	"github.com/sumicare/terraform-provider-kind/kind"
 )
 
@@ -36,7 +35,12 @@ var (
 func main() {
 	var debug bool
 
-	flag.BoolVar(&debug, "debug", false, "set to true to run the provider with support for debuggers like delve")
+	flag.BoolVar(
+		&debug,
+		"debug",
+		false,
+		"set to true to run the provider with support for debuggers like delve",
+	)
 	flag.Parse()
 
 	opts := providerserver.ServeOpts{

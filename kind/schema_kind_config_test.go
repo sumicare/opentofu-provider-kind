@@ -1,5 +1,5 @@
 /*
-   Copyright 2025 Sumicare
+   Copyright 2026 Sumicare
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -17,12 +17,14 @@
 package kind
 
 import (
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	"testing"
+
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/stretchr/testify/assert"
 )
 
 // Test data constants for schema validation.
-var (
+const (
 	// Schema block names.
 	kindConfigBlockName = "kind_config"
 	nodeBlockName       = "node"
@@ -36,57 +38,98 @@ var (
 	featureGatesFieldName            = "feature_gates"
 )
 
-// assertSchemaNotNil checks that schema result is not nil.
-func assertSchemaNotNil(schema any, message string) {
-	Expect(schema).NotTo(BeNil(), message)
-}
+func TestKindConfigBlocks(t *testing.T) {
+	tests := []struct {
+		name        string
+		expectedKey string
+		description string
+	}{
+		{
+			name:        "has kind_config block",
+			expectedKey: kindConfigBlockName,
+			description: "blocks should have kind_config key",
+		},
+	}
 
-// assertSchemaHasKey checks that schema map contains the expected key (generic version).
-func assertSchemaHasKey(schema any, key, message string) {
-	Expect(schema).To(HaveKey(key), message)
-}
-
-// Test suite for Kind configuration schema validation.
-var _ = Describe("Schema Kind Config", func() {
-	DescribeTable("kindConfigBlocks - returns kind_config block schema",
-		func(expectedKey, description string) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			blocks := kindConfigBlocks()
-			assertSchemaNotNil(blocks, "blocks should not be nil")
-			assertSchemaHasKey(blocks, expectedKey, description)
-		},
-		Entry("has kind_config block", kindConfigBlockName, "blocks should have kind_config key"),
-	)
+			assert.NotNil(t, blocks, "blocks should not be nil")
+			assert.Contains(t, blocks, tt.expectedKey, tt.description)
+		})
+	}
+}
 
-	DescribeTable("kindConfigFieldsFramework - returns kind_config field attributes",
-		func(expectedKey, description string) {
+func TestKindConfigFieldsFramework(t *testing.T) {
+	tests := []struct {
+		name        string
+		expectedKey string
+		description string
+	}{
+		{
+			name:        "has kind field",
+			expectedKey: kindFieldName,
+			description: "fields should have kind key",
+		},
+		{
+			name:        "has api_version field",
+			expectedKey: apiVersionFieldName,
+			description: "fields should have api_version key",
+		},
+		{
+			name:        "has containerd_config_patches field",
+			expectedKey: containerdConfigPatchesFieldName,
+			description: "fields should have containerd_config_patches key",
+		},
+		{
+			name:        "has runtime_config field",
+			expectedKey: runtimeConfigFieldName,
+			description: "fields should have runtime_config key",
+		},
+		{
+			name:        "has feature_gates field",
+			expectedKey: featureGatesFieldName,
+			description: "fields should have feature_gates key",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			fields := kindConfigFieldsFramework()
-			assertSchemaNotNil(fields, "fields should not be nil")
-			assertSchemaHasKey(fields, expectedKey, description)
-		},
-		Entry("has kind field", kindFieldName, "fields should have kind key"),
-		Entry("has api_version field", apiVersionFieldName, "fields should have api_version key"),
-		Entry("has containerd_config_patches field", containerdConfigPatchesFieldName, "fields should have containerd_config_patches key"),
-		Entry("has runtime_config field", runtimeConfigFieldName, "fields should have runtime_config key"),
-		Entry("has feature_gates field", featureGatesFieldName, "fields should have feature_gates key"),
-	)
+			assert.NotNil(t, fields, "fields should not be nil")
+			assert.Contains(t, fields, tt.expectedKey, tt.description)
+		})
+	}
+}
 
-	DescribeTable("kindConfigNestedBlocks - returns nested block schemas",
-		func(expectedKey, description string) {
-			blocks := kindConfigNestedBlocks()
-			assertSchemaNotNil(blocks, "blocks should not be nil")
-			assertSchemaHasKey(blocks, expectedKey, description)
+func TestKindConfigNestedBlocks(t *testing.T) {
+	tests := []struct {
+		validate    func(t *testing.T, block *schema.Resource)
+		name        string
+		expectedKey string
+		description string
+	}{
+		{
+			name:        "has node block",
+			expectedKey: nodeBlockName,
+			description: "blocks should have node key",
 		},
-		Entry("has node block", nodeBlockName, "blocks should have node key"),
-		Entry("has networking block", networkingBlockName, "blocks should have networking key"),
-	)
+		{
+			name:        "has networking block",
+			expectedKey: networkingBlockName,
+			description: "blocks should have networking key",
+		},
+	}
 
-	DescribeTable("kindConfigNestedBlocks - validates individual block schemas",
-		func(blockKey, description string) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			blocks := kindConfigNestedBlocks()
-			block := blocks[blockKey]
-			assertSchemaNotNil(block, description)
-		},
-		Entry("node block is properly configured", nodeBlockName, "node block should not be nil"),
-		Entry("networking block is properly configured", networkingBlockName, "networking block should not be nil"),
-	)
-})
+			assert.NotNil(t, blocks, "blocks should not be nil")
+			assert.Contains(t, blocks, tt.expectedKey, tt.description)
+
+			// Validate individual block schema
+			block := blocks[tt.expectedKey]
+			assert.NotNil(t, block, "%s block should not be nil", tt.expectedKey)
+		})
+	}
+}
